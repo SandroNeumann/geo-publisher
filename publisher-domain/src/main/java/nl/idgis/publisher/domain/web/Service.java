@@ -6,6 +6,7 @@ package nl.idgis.publisher.domain.web;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonGetter;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.mysema.query.annotations.QueryProjection;
 
 /**
  * Represents the Service table.
@@ -27,6 +28,7 @@ public class Service extends Identifiable {
 	private final Category category;
 	
 	@JsonCreator
+	@QueryProjection
 	public Service(
 			final @JsonProperty("id") String id, 
 			final @JsonProperty("name") String name, 

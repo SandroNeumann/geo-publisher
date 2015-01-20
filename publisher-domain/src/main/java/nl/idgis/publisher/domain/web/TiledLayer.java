@@ -8,6 +8,7 @@ import java.awt.Dimension;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonGetter;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.mysema.query.annotations.QueryProjection;
 
 /**
  * Represents the TiledLayer table.
@@ -28,6 +29,7 @@ public class TiledLayer extends Identifiable {
 	private final Integer gutter;
 	
 	@JsonCreator
+	@QueryProjection
 	public TiledLayer(
 			final @JsonProperty("id") String id, 
 			final @JsonProperty("name") String name, 
