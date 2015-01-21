@@ -7,7 +7,12 @@ import static nl.idgis.publisher.database.QDatasetColumn.datasetColumn;
 import static nl.idgis.publisher.database.QSourceDataset.sourceDataset;
 import static nl.idgis.publisher.database.QSourceDatasetVersion.sourceDatasetVersion;
 import static nl.idgis.publisher.database.QSourceDatasetVersionColumn.sourceDatasetVersionColumn;
+import static nl.idgis.publisher.database.QLayer.layer;
+import static nl.idgis.publisher.database.QTiledlayer.tiledlayer;
+import static nl.idgis.publisher.database.QLayergroup.layergroup;
+import static nl.idgis.publisher.database.QStyle.style;
 
+import java.awt.Dimension;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Date;
@@ -41,7 +46,6 @@ import nl.idgis.publisher.database.messages.StoredJobLog;
 import nl.idgis.publisher.database.messages.StoredNotification;
 import nl.idgis.publisher.database.messages.UpdateDataset;
 import nl.idgis.publisher.database.projections.QColumn;
-
 import nl.idgis.publisher.domain.EntityType;
 import nl.idgis.publisher.domain.MessageType;
 import nl.idgis.publisher.domain.job.ConfirmNotificationResult;
@@ -57,6 +61,7 @@ import nl.idgis.publisher.domain.query.ListDatasetColumns;
 import nl.idgis.publisher.domain.query.ListDatasets;
 import nl.idgis.publisher.domain.query.ListEntity;
 import nl.idgis.publisher.domain.query.ListIssues;
+import nl.idgis.publisher.domain.query.ListServices;
 import nl.idgis.publisher.domain.query.ListSourceDatasetColumns;
 import nl.idgis.publisher.domain.query.ListSourceDatasets;
 import nl.idgis.publisher.domain.query.PutEntity;
@@ -68,6 +73,8 @@ import nl.idgis.publisher.domain.response.Response;
 import nl.idgis.publisher.domain.service.Column;
 import nl.idgis.publisher.domain.service.ColumnDiff;
 import nl.idgis.publisher.domain.service.CrudOperation;
+import nl.idgis.publisher.domain.web.Layer;
+import nl.idgis.publisher.domain.web.LayerGroup;
 import nl.idgis.publisher.domain.web.QCategory;
 import nl.idgis.publisher.domain.web.ActiveTask;
 import nl.idgis.publisher.domain.web.Category;
@@ -85,10 +92,17 @@ import nl.idgis.publisher.domain.web.Message;
 import nl.idgis.publisher.domain.web.NotFound;
 import nl.idgis.publisher.domain.web.Notification;
 import nl.idgis.publisher.domain.web.PutDataset;
+import nl.idgis.publisher.domain.web.QLayer;
+import nl.idgis.publisher.domain.web.QLayerGroup;
+import nl.idgis.publisher.domain.web.QService;
+import nl.idgis.publisher.domain.web.QStyle;
+import nl.idgis.publisher.domain.web.QTiledLayer;
+import nl.idgis.publisher.domain.web.Service;
 import nl.idgis.publisher.domain.web.SourceDataset;
 import nl.idgis.publisher.domain.web.SourceDatasetStats;
 import nl.idgis.publisher.domain.web.Status;
-
+import nl.idgis.publisher.domain.web.Style;
+import nl.idgis.publisher.domain.web.TiledLayer;
 import nl.idgis.publisher.harvester.messages.GetActiveDataSources;
 import nl.idgis.publisher.job.manager.messages.CreateImportJob;
 import nl.idgis.publisher.job.manager.messages.HarvestJobInfo;
@@ -100,9 +114,7 @@ import nl.idgis.publisher.messages.GetActiveJobs;
 import nl.idgis.publisher.messages.Progress;
 import nl.idgis.publisher.utils.FutureUtils;
 import nl.idgis.publisher.utils.TypedList;
-
 import scala.concurrent.Future;
-
 import akka.actor.ActorRef;
 import akka.actor.Props;
 import akka.actor.UntypedActor;
@@ -119,6 +131,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Iterables;
 import com.mysema.query.sql.SQLSubQuery;
+import com.mysema.query.types.ConstructorExpression;
 import com.mysema.query.types.Order;
 
 public class Admin extends UntypedActor {
@@ -713,6 +726,194 @@ public class Admin extends UntypedActor {
 		});
 	}
 
+	
+	/*
+	 * Admin service Configuration getters
+	 */
+	
+	private void handleGetLayer (final GetEntity<?> getEntity) {
+		log.debug ("handleGetLayer");
+		
+		final ActorRef sender = getSender();
+		
+		final CompletableFuture<Layer> layerFuture = databaseRef.query().from(layer)
+				.leftJoin(tiledlayer)
+				.on(layer.tiledlayerId.eq(tiledlayer.id))
+				.where(layer.identification.eq(getEntity.id()))
+				.singleResult(
+					new QLayer(layer.identification, layer.name, layer.title, layer.abstractCol, layer.keywords, layer.metadata,  
+						new QTiledLayer(tiledlayer.identification,tiledlayer.name,tiledlayer.enabled,
+							tiledlayer.mimeformats,tiledlayer.metawidth, tiledlayer.metaheight,tiledlayer.expirecache,tiledlayer.expireclients,tiledlayer.gutter)
+					));
+
+		layerFuture.thenAccept(layer -> {
+			if (layer != null) {
+				log.debug("sending layer: " + layer);
+				sender.tell(layer, getSelf());
+			} else {
+				sender.tell(new NotFound(), getSelf());
+			}
+		});
+	}
+	
+	private void handleGetTiledLayer (final GetEntity<?> getEntity) {
+		log.debug ("handleGetTiledLayer");
+		
+		final ActorRef sender = getSender();
+		
+		final CompletableFuture<TiledLayer> tiledlayerFuture = 
+				databaseRef.query().from(tiledlayer)
+				.where(tiledlayer.identification.eq(getEntity.id()))
+				.singleResult(new QTiledLayer(tiledlayer.identification,tiledlayer.name,tiledlayer.enabled,
+					tiledlayer.mimeformats,tiledlayer.metawidth, tiledlayer.metaheight,tiledlayer.expirecache,tiledlayer.expireclients,tiledlayer.gutter));
+
+		tiledlayerFuture.thenAccept(tiledlayer -> {
+			if (tiledlayer != null) {
+				log.debug("sending tiledlayer: " + tiledlayer);
+				sender.tell(tiledlayer, getSelf());
+			} else {
+				sender.tell(new NotFound(), getSelf());
+			}
+		});
+	}
+	
+	private void handleGetStyle (final GetEntity<?> getEntity) {
+		log.debug ("handleGetStyle");
+		
+		final ActorRef sender = getSender();
+		
+		final CompletableFuture<Style> styleFuture = 
+				databaseRef.query().from(style)
+				.where(style.identification.eq(getEntity.id()))
+				.singleResult(new QStyle(style.identification,style.name,style.format, style.version, style.definition));
+
+		styleFuture.thenAccept(style -> {
+			if (style != null) {
+				log.debug("sending style: " + style);
+				sender.tell(style, getSelf());
+			} else {
+				sender.tell(new NotFound(), getSelf());
+			}
+		});
+	}
+	
+	private void handleGetLayerGroup (final GetEntity<?> getEntity) {
+		log.debug ("handleLayerGroup");
+		
+		final ActorRef sender = getSender();
+		
+		final CompletableFuture<LayerGroup> layerGroupFuture = 
+				databaseRef.query().from(layergroup)
+				.leftJoin(tiledlayer)
+				.on(layergroup.tiledlayerId.eq(tiledlayer.id))
+				.where(layergroup.identification.eq(getEntity.id()))
+				.singleResult(
+						ConstructorExpression.create(LayerGroup.class, layergroup)
+//						new QLayerGroup(layergroup.identification,layergroup.name,layergroup.title, layergroup.abstractCol, 
+//						null,
+//						ConstructorExpression.create(TiledLayer.class, tiledlayer)						
+//						new QTiledLayer(tiledlayer.identification,tiledlayer.name,tiledlayer.enabled,
+//								tiledlayer.mimeformats,tiledlayer.metawidth, tiledlayer.metaheight,tiledlayer.expirecache,tiledlayer.expireclients,tiledlayer.gutter)
+						);
+
+		layerGroupFuture.thenAccept(layergroup -> {
+			if (layergroup != null) {
+				log.debug("sending layergroup: " + layergroup);
+				sender.tell(layergroup, getSelf());
+			} else {
+				sender.tell(new NotFound(), getSelf());
+			}
+		});
+	}
+	
+	private void handleGetService (final GetEntity<?> getEntity) {
+		log.debug ("handleService");
+		
+		final ActorRef sender = getSender();
+		
+		final CompletableFuture<Service> serviceFuture = 
+				databaseRef.query().from(nl.idgis.publisher.database.QService.service)
+				.leftJoin(layergroup)
+				.on(nl.idgis.publisher.database.QService.service.rootgroupId.eq(layergroup.id))
+				.leftJoin(category)
+				.on(nl.idgis.publisher.database.QService.service.rootgroupId.eq(category.id))
+				.where(nl.idgis.publisher.database.QService.service.identification.eq(getEntity.id()))
+				.singleResult(new QService(
+						nl.idgis.publisher.database.QService.service.identification,
+						nl.idgis.publisher.database.QService.service.name,
+						nl.idgis.publisher.database.QService.service.title, 
+						nl.idgis.publisher.database.QService.service.alternatetitle,
+						nl.idgis.publisher.database.QService.service.abstractCol,
+						nl.idgis.publisher.database.QService.service.keywords,
+						nl.idgis.publisher.database.QService.service.metadata,
+						nl.idgis.publisher.database.QService.service.watermark,
+						ConstructorExpression.create(LayerGroup.class, layergroup),
+//						new QLayerGroup(layergroup.identification,layergroup.name,layergroup.title, layergroup.abstractCol, 
+//								null,null),
+						ConstructorExpression.create(Category.class, category)
+//						null
+						));
+
+		serviceFuture.thenAccept(service -> {
+			if (service != null) {
+				log.debug("sending service: " + service);
+				sender.tell(service, getSelf());
+			} else {
+				sender.tell(new NotFound(), getSelf());
+			}
+		});
+	}
+	
+	/*
+	 * Admin service Configuration list
+	 */
+	
+	
+	private void handleListServices (final ListServices listServices) {
+		String layergroupId = listServices.getLayerGroupId();
+		log.debug ("handleListServices layergroupId=" + layergroupId);
+		
+		final ActorRef sender = getSender();
+		
+		final CompletableFuture<TypedList<Service>> serviceFuture = 
+				databaseRef.query().from(nl.idgis.publisher.database.QService.service)
+				.leftJoin(layergroup)
+				.on(nl.idgis.publisher.database.QService.service.rootgroupId.eq(layergroup.id))
+				.where(layergroup.identification.eq(layergroupId))
+				.list(new QService(
+						nl.idgis.publisher.database.QService.service.identification,
+						nl.idgis.publisher.database.QService.service.name,
+						nl.idgis.publisher.database.QService.service.title, 
+						nl.idgis.publisher.database.QService.service.alternatetitle,
+						nl.idgis.publisher.database.QService.service.abstractCol,
+						nl.idgis.publisher.database.QService.service.keywords,
+						nl.idgis.publisher.database.QService.service.metadata,
+						nl.idgis.publisher.database.QService.service.watermark,
+						ConstructorExpression.create(LayerGroup.class, layergroup),
+//						new QLayerGroup(layergroup.identification,layergroup.name,layergroup.title, layergroup.abstractCol, 
+//								null,null),
+						null
+						));
+
+		serviceFuture.thenAccept(service -> {
+			if (service != null) {
+				log.debug("sending service: " + service);
+				sender.tell(service.asCollection(), getSelf());
+			} else {
+				sender.tell(new NotFound(), getSelf());
+			}
+		});
+	}
+	
+	
+	
+	/*
+	 * Admin service Configuration end
+	 */
+	
+
+	
+	
 	private void handleListSourceDatasets (final ListSourceDatasets message) {
 		
 		log.debug ("handleListSourceDatasets");
