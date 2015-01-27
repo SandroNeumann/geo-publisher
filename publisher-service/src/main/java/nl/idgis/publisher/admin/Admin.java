@@ -4,15 +4,14 @@ import static nl.idgis.publisher.database.QCategory.category;
 import static nl.idgis.publisher.database.QDataSource.dataSource;
 import static nl.idgis.publisher.database.QDataset.dataset;
 import static nl.idgis.publisher.database.QDatasetColumn.datasetColumn;
+import static nl.idgis.publisher.database.QLayer.layer;
+import static nl.idgis.publisher.database.QLayergroup.layergroup;
 import static nl.idgis.publisher.database.QSourceDataset.sourceDataset;
 import static nl.idgis.publisher.database.QSourceDatasetVersion.sourceDatasetVersion;
 import static nl.idgis.publisher.database.QSourceDatasetVersionColumn.sourceDatasetVersionColumn;
-import static nl.idgis.publisher.database.QLayer.layer;
-import static nl.idgis.publisher.database.QTiledlayer.tiledlayer;
-import static nl.idgis.publisher.database.QLayergroup.layergroup;
 import static nl.idgis.publisher.database.QStyle.style;
+import static nl.idgis.publisher.database.QTiledlayer.tiledlayer;
 
-import java.awt.Dimension;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Date;
@@ -22,8 +21,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
-import nl.idgis.publisher.database.AsyncSQLQuery;
 import nl.idgis.publisher.database.AsyncDatabaseHelper;
+import nl.idgis.publisher.database.AsyncSQLQuery;
 import nl.idgis.publisher.database.QSourceDatasetVersion;
 import nl.idgis.publisher.database.messages.CreateDataset;
 import nl.idgis.publisher.database.messages.DataSourceInfo;
@@ -38,7 +37,9 @@ import nl.idgis.publisher.database.messages.GetNotifications;
 import nl.idgis.publisher.database.messages.GetSourceDatasetListInfo;
 import nl.idgis.publisher.database.messages.InfoList;
 import nl.idgis.publisher.database.messages.JobInfo;
+import nl.idgis.publisher.database.messages.LayerInfo;
 import nl.idgis.publisher.database.messages.QDataSourceInfo;
+import nl.idgis.publisher.database.messages.QLayerInfo;
 import nl.idgis.publisher.database.messages.QSourceDatasetInfo;
 import nl.idgis.publisher.database.messages.SourceDatasetInfo;
 import nl.idgis.publisher.database.messages.StoreNotificationResult;
@@ -73,9 +74,6 @@ import nl.idgis.publisher.domain.response.Response;
 import nl.idgis.publisher.domain.service.Column;
 import nl.idgis.publisher.domain.service.ColumnDiff;
 import nl.idgis.publisher.domain.service.CrudOperation;
-import nl.idgis.publisher.domain.web.Layer;
-import nl.idgis.publisher.domain.web.LayerGroup;
-import nl.idgis.publisher.domain.web.QCategory;
 import nl.idgis.publisher.domain.web.ActiveTask;
 import nl.idgis.publisher.domain.web.Category;
 import nl.idgis.publisher.domain.web.DashboardItem;
@@ -88,10 +86,13 @@ import nl.idgis.publisher.domain.web.DefaultMessageProperties;
 import nl.idgis.publisher.domain.web.EntityRef;
 import nl.idgis.publisher.domain.web.Filter;
 import nl.idgis.publisher.domain.web.Issue;
+import nl.idgis.publisher.domain.web.Layer;
+import nl.idgis.publisher.domain.web.LayerGroup;
 import nl.idgis.publisher.domain.web.Message;
 import nl.idgis.publisher.domain.web.NotFound;
 import nl.idgis.publisher.domain.web.Notification;
 import nl.idgis.publisher.domain.web.PutDataset;
+import nl.idgis.publisher.domain.web.QCategory;
 import nl.idgis.publisher.domain.web.QLayer;
 import nl.idgis.publisher.domain.web.QLayerGroup;
 import nl.idgis.publisher.domain.web.QService;
@@ -131,8 +132,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Iterables;
 import com.mysema.query.sql.SQLSubQuery;
-import com.mysema.query.types.ConstructorExpression;
+import com.mysema.query.types.NullExpression;
 import com.mysema.query.types.Order;
+import com.mysema.query.types.ConstructorExpression;
 
 public class Admin extends UntypedActor {
 	
@@ -185,6 +187,16 @@ public class Admin extends UntypedActor {
 				handleListDashboardActiveTasks (null);
 			} else if (listEntity.cls ().equals (Issue.class)) {
 				handleListDashboardIssues (null);
+
+			} else if (listEntity.cls ().equals (Layer.class)) {
+				handleListLayers (listEntity);
+			} else if (listEntity.cls ().equals (TiledLayer.class)) {
+				handleListTiledLayers (listEntity);
+			} else if (listEntity.cls ().equals (Style.class)) {
+				handleListStyles (listEntity);
+			} else if (listEntity.cls ().equals (Service.class)) {
+				handleListServices (listEntity);
+
 			} else {
 				handleEmptyList (listEntity);
 			}
@@ -199,6 +211,18 @@ public class Admin extends UntypedActor {
 				handleGetDataset(getEntity);
 			} else if (getEntity.cls ().equals (SourceDataset.class)) {
 				handleGetSourceDataset(getEntity);
+
+			} else if (getEntity.cls ().equals (Layer.class)) {
+				handleGetLayer (getEntity);
+			} else if (getEntity.cls ().equals (LayerGroup.class)) {
+				handleGetLayerGroup (getEntity);
+			} else if (getEntity.cls ().equals (TiledLayer.class)) {
+				handleGetTiledLayer (getEntity);
+			} else if (getEntity.cls ().equals (Style.class)) {
+				handleGetStyle (getEntity);
+			} else if (getEntity.cls ().equals (Service.class)) {
+				handleGetService (getEntity);
+			
 			} else {
 				sender ().tell (null, self ());
 			}
@@ -236,6 +260,10 @@ public class Admin extends UntypedActor {
 			handlePutNotificationResult ((PutNotificationResult) message);
 		} else if (message instanceof ListDatasetColumnDiff) {
 			handleListDatasetColumnDiff ((ListDatasetColumnDiff) message);
+			
+//		} else if (message instanceof ListServices) {
+//			handleListServices ((ListServices)message);
+			
 		} else {
 			unhandled (message);
 		}
@@ -736,19 +764,20 @@ public class Admin extends UntypedActor {
 		
 		final ActorRef sender = getSender();
 		
-		final CompletableFuture<Layer> layerFuture = databaseRef.query().from(layer)
+		final CompletableFuture<LayerInfo> layerFuture = databaseRef.query().from(layer)
 				.leftJoin(tiledlayer)
 				.on(layer.tiledlayerId.eq(tiledlayer.id))
 				.where(layer.identification.eq(getEntity.id()))
 				.singleResult(
-					new QLayer(layer.identification, layer.name, layer.title, layer.abstractCol, layer.keywords, layer.metadata,  
-						new QTiledLayer(tiledlayer.identification,tiledlayer.name,tiledlayer.enabled,
-							tiledlayer.mimeformats,tiledlayer.metawidth, tiledlayer.metaheight,tiledlayer.expirecache,tiledlayer.expireclients,tiledlayer.gutter)
-					));
+					new QLayerInfo(layer.identification, layer.name, layer.title, layer.abstractCol, layer.keywords, layer.metadata,
+						tiledlayer.identification,tiledlayer.name)
+					);
 
-		layerFuture.thenAccept(layer -> {
-			if (layer != null) {
-				log.debug("sending layer: " + layer);
+		layerFuture.thenAccept(layerInfo -> {
+			if (layerInfo != null) {
+				log.debug("sending layer: " + layerInfo);
+				final Layer layer = new Layer(layerInfo.getIdentification(), layerInfo.getName(), layerInfo.getTitle(), layerInfo.getAbstract(), layerInfo.getKeywords(), layerInfo.getMetadata(), 
+						new EntityRef(EntityType.TILEDLAYER, layerInfo.getTiledLayerId(), layerInfo.getTiledLayerName()));
 				sender.tell(layer, getSelf());
 			} else {
 				sender.tell(new NotFound(), getSelf());
@@ -808,13 +837,11 @@ public class Admin extends UntypedActor {
 				.on(layergroup.tiledlayerId.eq(tiledlayer.id))
 				.where(layergroup.identification.eq(getEntity.id()))
 				.singleResult(
-						ConstructorExpression.create(LayerGroup.class, layergroup)
-//						new QLayerGroup(layergroup.identification,layergroup.name,layergroup.title, layergroup.abstractCol, 
-//						null,
-//						ConstructorExpression.create(TiledLayer.class, tiledlayer)						
-//						new QTiledLayer(tiledlayer.identification,tiledlayer.name,tiledlayer.enabled,
-//								tiledlayer.mimeformats,tiledlayer.metawidth, tiledlayer.metaheight,tiledlayer.expirecache,tiledlayer.expireclients,tiledlayer.gutter)
-						);
+						new QLayerGroup(layergroup.identification,layergroup.name,layergroup.title, layergroup.abstractCol, 
+								new NullExpression<LayerGroup>(LayerGroup.class), // empty parentgroup
+						new QTiledLayer(tiledlayer.identification,tiledlayer.name,tiledlayer.enabled,
+								tiledlayer.mimeformats,tiledlayer.metawidth, tiledlayer.metaheight,tiledlayer.expirecache,tiledlayer.expireclients,tiledlayer.gutter)
+						));
 
 		layerGroupFuture.thenAccept(layergroup -> {
 			if (layergroup != null) {
@@ -836,7 +863,7 @@ public class Admin extends UntypedActor {
 				.leftJoin(layergroup)
 				.on(nl.idgis.publisher.database.QService.service.rootgroupId.eq(layergroup.id))
 				.leftJoin(category)
-				.on(nl.idgis.publisher.database.QService.service.rootgroupId.eq(category.id))
+				.on(nl.idgis.publisher.database.QService.service.defaultcategoryId.eq(category.id))
 				.where(nl.idgis.publisher.database.QService.service.identification.eq(getEntity.id()))
 				.singleResult(new QService(
 						nl.idgis.publisher.database.QService.service.identification,
@@ -847,11 +874,10 @@ public class Admin extends UntypedActor {
 						nl.idgis.publisher.database.QService.service.keywords,
 						nl.idgis.publisher.database.QService.service.metadata,
 						nl.idgis.publisher.database.QService.service.watermark,
-						ConstructorExpression.create(LayerGroup.class, layergroup),
-//						new QLayerGroup(layergroup.identification,layergroup.name,layergroup.title, layergroup.abstractCol, 
-//								null,null),
-						ConstructorExpression.create(Category.class, category)
-//						null
+						new QLayerGroup(layergroup.identification,layergroup.name,layergroup.title, layergroup.abstractCol, 
+								new NullExpression<LayerGroup>(LayerGroup.class), // empty parentgroup
+								new NullExpression<TiledLayer>(TiledLayer.class)),// empty
+						new QCategory(category.identification, category.name)
 						));
 
 		serviceFuture.thenAccept(service -> {
@@ -868,10 +894,83 @@ public class Admin extends UntypedActor {
 	 * Admin service Configuration list
 	 */
 	
+	private void handleListLayers (final ListEntity<?> listEntity) {
+		log.debug ("handleListLayers");
+		
+		final ActorRef sender = getSender();
+		
+		final CompletableFuture<TypedList<LayerInfo>> layerFuture = databaseRef.query().from(layer)
+				.leftJoin(tiledlayer)
+				.on(layer.tiledlayerId.eq(tiledlayer.id))
+				.list(
+					new QLayerInfo(layer.identification, layer.name, layer.title, layer.abstractCol, layer.keywords, layer.metadata,
+						tiledlayer.identification,tiledlayer.name)
+					);
+
+		layerFuture.thenAccept(layerInfoList -> {
+			if (layerInfoList != null) {
+				final Page.Builder<Layer> pageBuilder = new Page.Builder<Layer> ();
+				for (LayerInfo layerInfo : layerInfoList) {
+					log.debug("adding layer: " + layerInfo);
+					final Layer layer = new Layer(layerInfo.getIdentification(), layerInfo.getName(), layerInfo.getTitle(), layerInfo.getAbstract(), layerInfo.getKeywords(), layerInfo.getMetadata(), 
+							new EntityRef(EntityType.TILEDLAYER, layerInfo.getTiledLayerId(), layerInfo.getTiledLayerName()));
+					pageBuilder.add(layer);
+				}
+				sender.tell(pageBuilder.build(), getSelf());
+			} else {
+				sender.tell(new NotFound(), getSelf());
+			}
+		});
+	}
 	
-	private void handleListServices (final ListServices listServices) {
-		String layergroupId = listServices.getLayerGroupId();
-		log.debug ("handleListServices layergroupId=" + layergroupId);
+	private void handleListStyles (final ListEntity<?> listEntity) {
+		log.debug ("handleListStyles");
+		
+		final ActorRef sender = getSender();
+		
+		final CompletableFuture<TypedList<Style>> styleList = 
+				databaseRef.query().from(style)
+				.list(new QStyle(style.identification,style.name,style.format, style.version, style.definition));
+
+		styleList.thenAccept(msg -> {
+			if (msg != null){
+				final Page.Builder<Style> pageBuilder = new Page.Builder<Style> ();
+				pageBuilder.addAll(msg.asCollection());				
+				log.debug("sending style list");
+				sender.tell(pageBuilder.build(), getSelf());
+			} else {
+				sender.tell(new NotFound(), getSelf());
+			}
+		});
+
+	}
+	
+	private void handleListTiledLayers (final ListEntity<?> listEntity) {
+		log.debug ("handleListTiledLayers");
+		
+		final ActorRef sender = getSender();
+		
+		final CompletableFuture<TypedList<TiledLayer>> tiledLayerList = 
+				databaseRef.query().from(tiledlayer)
+				.list(new QTiledLayer(tiledlayer.identification,tiledlayer.name,tiledlayer.enabled,
+						tiledlayer.mimeformats,tiledlayer.metawidth, tiledlayer.metaheight,tiledlayer.expirecache,tiledlayer.expireclients,tiledlayer.gutter));
+
+		tiledLayerList.thenAccept(msg -> {
+			if (msg != null){
+				final Page.Builder<TiledLayer> pageBuilder = new Page.Builder<TiledLayer> ();
+				pageBuilder.addAll(msg.asCollection());				
+				log.debug("sending TiledLayer list");
+				sender.tell(pageBuilder.build(), getSelf());
+			} else {
+				sender.tell(new NotFound(), getSelf());
+			}
+		});
+
+	}
+	
+	
+	private void handleListServices (final ListEntity<?> listEntity) {
+		log.debug ("handleListServices ");
 		
 		final ActorRef sender = getSender();
 		
@@ -879,7 +978,8 @@ public class Admin extends UntypedActor {
 				databaseRef.query().from(nl.idgis.publisher.database.QService.service)
 				.leftJoin(layergroup)
 				.on(nl.idgis.publisher.database.QService.service.rootgroupId.eq(layergroup.id))
-				.where(layergroup.identification.eq(layergroupId))
+				.leftJoin(category)
+				.on(nl.idgis.publisher.database.QService.service.defaultcategoryId.eq(category.id))
 				.list(new QService(
 						nl.idgis.publisher.database.QService.service.identification,
 						nl.idgis.publisher.database.QService.service.name,
@@ -889,16 +989,18 @@ public class Admin extends UntypedActor {
 						nl.idgis.publisher.database.QService.service.keywords,
 						nl.idgis.publisher.database.QService.service.metadata,
 						nl.idgis.publisher.database.QService.service.watermark,
-						ConstructorExpression.create(LayerGroup.class, layergroup),
-//						new QLayerGroup(layergroup.identification,layergroup.name,layergroup.title, layergroup.abstractCol, 
-//								null,null),
-						null
+						new QLayerGroup(layergroup.identification,layergroup.name,layergroup.title, layergroup.abstractCol, 
+								new NullExpression<LayerGroup>(LayerGroup.class), // empty parentgroup
+								new NullExpression<TiledLayer>(TiledLayer.class)),
+						new QCategory(category.identification, category.name)
 						));
 
 		serviceFuture.thenAccept(service -> {
 			if (service != null) {
-				log.debug("sending service: " + service);
-				sender.tell(service.asCollection(), getSelf());
+				final Page.Builder<Service> pageBuilder = new Page.Builder<Service> ();
+				pageBuilder.addAll(service.asCollection());				
+				log.debug("sending service list");
+				sender.tell(pageBuilder.build(), getSelf());
 			} else {
 				sender.tell(new NotFound(), getSelf());
 			}
