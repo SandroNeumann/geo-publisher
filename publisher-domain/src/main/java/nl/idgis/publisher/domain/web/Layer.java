@@ -22,7 +22,7 @@ public class Layer extends Identifiable {
 	private final String abstract_;
 	private final String keywords;
 	private final String metadata;
-	private final TiledLayer tiledLayer;
+	private final EntityRef tiledLayer;
 	
 	@JsonCreator
 	@QueryProjection
@@ -33,7 +33,7 @@ public class Layer extends Identifiable {
 			final @JsonProperty("abstract") String abstract_, 
 			final @JsonProperty("keywords") String keywords, 
 			final @JsonProperty("metadata") String metadata,
-			final @JsonProperty("tiledLayer") TiledLayer tiledLayer) {
+			final @JsonProperty("tiledLayer") EntityRef tiledLayer) {
 		super(id);
 		this.name = name;
 		this.title = title;
@@ -69,7 +69,7 @@ public class Layer extends Identifiable {
 	}
 	
 	@JsonGetter
-	public TiledLayer getTiledLayer() {
+	public EntityRef getEntityRef() {
 		return tiledLayer;
 	}
 
