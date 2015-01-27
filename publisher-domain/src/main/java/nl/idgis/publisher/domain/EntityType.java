@@ -7,5 +7,11 @@ public enum EntityType {
 	CATEGORY,
 	JOB,
 	LOG_ITEM,
-	DATA_SOURCE
+	DATA_SOURCE,
+	// service configuration:
+	LAYER,
+	LAYERGROUP,
+	TILEDLAYER,
+	STYLE,
+	SERVICE
 }
