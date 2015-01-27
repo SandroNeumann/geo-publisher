@@ -1,0 +1,69 @@
+@(layers: List[nl.idgis.publisher.domain.web.Layer],
+tiledLayers: List[nl.idgis.publisher.domain.web.TiledLayer],
+layerGroups: List[nl.idgis.publisher.domain.web.LayerGroup],
+styles: List[nl.idgis.publisher.domain.web.Style],
+services: List[nl.idgis.publisher.domain.web.Service])
+
+@import nl.idgis.publisher.domain.web._
+
+@layout.application(
+	title = "Service Configuration"
+) {
+
+	<div class="page-content">
+		@if(layers != null){
+			<h1 class="page-header">layers</h1>		
+			@for(layer <- layers) {
+			<div class="row">
+				@if(layer!=null){
+					<span class="label label-default"> layer: @layer.getName , tiledLayer: @layer.getEntityRef.name </span>
+				}
+			</div>
+			}
+		}
+		
+		@if(tiledLayers != null){
+			<h1 class="page-header">tiledLayers</h1>		
+			@for(tiledLayer <- tiledLayers) {
+				<div class="row">
+					@if(tiledLayer!=null){
+						<span class="label label-default"> tiledLayer: @tiledLayer.getName</span>
+					}
+				</div>
+			}
+		}
+		
+		@if(styles != null){
+			<h1 class="page-header">Styles</h1>		
+			@for(style <- styles) {
+				<div class="row">
+					@if(style!=null){
+						<span class="label label-default"> style: @style.getName</span>
+					}
+				}
+			</div>
+		}
+		
+		@if(layerGroups != null){
+			<h1 class="page-header">layerGroups</h1>		
+			@for(layerGroup <- layerGroups) {
+				<div class="row">
+					@if(layerGroup!=null){
+						<span class="label label-default"> layerGroup: @layerGroup.getName</span>
+					}
+				}
+			</div>
+		}
+		
+		@if(services != null){
+			<h1 class="page-header">services</h1>		
+			@for(service <- services) {
+				<div class="row">
+					@if(service!=null){
+						<span class="label label-default"> service: @service.getName</span>
+					}
+				}
+			</div>
+		}
+	</div>
+}

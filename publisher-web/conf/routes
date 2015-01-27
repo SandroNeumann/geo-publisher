@@ -32,6 +32,21 @@ GET		/datasources/:dataSourceId						controllers.DataSources.listByDataSource(da
 GET		/datasources/:dataSourceId/category/$categoryId<[^\.]+>.json	controllers.DataSources.listByDataSourceAndCategoryJson(dataSourceId: String, categoryId: String)
 GET		/datasources/:dataSourceId/category/:categoryId	controllers.DataSources.listByDataSourceAndCategory(dataSourceId: String, categoryId: String, searchString: String ?="", page: Long ?= 1)
 
+# Service configuration
+# 
+GET		/serviceconf/layer/$Id<[^\.]+>.json				controllers.ServiceConf.getLayerJson(Id: String)
+GET		/serviceconf/layergroup/$Id<[^\.]+>.json		controllers.ServiceConf.getLayerGroupJson(Id: String)
+GET		/serviceconf/tiledlayer/$Id<[^\.]+>.json		controllers.ServiceConf.getTiledLayerJson(Id: String)
+GET		/serviceconf/style/$Id<[^\.]+>.json				controllers.ServiceConf.getStyleJson(Id: String)
+GET		/serviceconf/service/$Id<[^\.]+>.json			controllers.ServiceConf.getServiceJson(Id: String)
+
+GET		/serviceconf/layers								controllers.ServiceConf.listLayers()
+GET		/serviceconf/layergroups						controllers.ServiceConf.listLayers()
+GET		/serviceconf/tiledlayers						controllers.ServiceConf.listTiledLayers()
+GET		/serviceconf/styles								controllers.ServiceConf.listStyles()
+GET		/serviceconf/services							controllers.ServiceConf.listServices()
+
+
 # Logging
 GET		/logging/messages								controllers.Logging.messages()
 GET		/logging/messages/:logLevels/:page				controllers.Logging.messagesWithFilter(logLevels: String, page: Long)
