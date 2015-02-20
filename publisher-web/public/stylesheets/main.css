@@ -11,6 +11,12 @@
 .tree-item { padding-top:5px;padding-bottom:5px}
 .tree-item-delete { padding-top:5px;padding-bottom:5px}
 
+.keyword-list {position:relative;bottom:-7px;margin-bottom:15px;}
+.keyword-item-block {margin-bottom:3px;}
+.keyword-item {vertical-align:middle;padding:.2em .6em .3em;font-size:75%;border-radius:.25em;text-align: center;}
+.keyword-item .close {float:none;display:inline-block;vertical-align:middle;margin-left:6px;bottom-down:2px;vertical-align:middle;font-size:21px;}
+
+
 ul.treelist {
 	position:relative;
 	left:-50px;
