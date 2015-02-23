@@ -71,7 +71,7 @@ require ([
 	
 	on(win.doc, ".delete-el:click", function(event) {
 		var idItem = domattr.get(this, 'value');
-		var itemToDel = query(".delete-el[value$=" + idItem + "]").closest(".list-group-item[value$=" + idItem + "]")[0];
+		var itemToDel = query(this).parents(".list-group-item")[0];
 		
 		domConstruct.destroy(itemToDel);
 	});
